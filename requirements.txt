@@ -1,0 +1,10 @@
+# USB Recovery Tool - Dependencias
+# 
+# Este proyecto no requiere dependencias externas para funcionar.
+# Solo usa la biblioteca estándar de Python.
+#
+# Para funcionalidades opcionales (futuras versiones):
+# Pillow>=9.0          # Thumbnails de imágenes
+# xxhash>=3.0          # Hashing rápido (alternativa a md5)
+# pyahocorasick>=1.4   # Búsqueda multi-patrón
+# rich>=12.0           # UI enriquecida
