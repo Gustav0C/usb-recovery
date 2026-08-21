@@ -31,26 +31,12 @@ from pathlib import Path
 from typing import List, Dict, Optional
 
 
-def list_usb_devices_windows() -> List[Dict]:
+def list_usb_devices() -> List[DeviceInfo]:
     """
-    Lista dispositivos USB conectados en Windows.
-    Función de compatibilidad - usa la nueva API internamente.
+    Lista dispositivos USB conectados en cualquier plataforma.
     """
     detector = get_detector()
-    devices = detector.list_devices()
-    
-    # Convertir a formato antiguo para compatibilidad
-    return [
-        {
-            'letter': dev.id,
-            'path': dev.path,
-            'name': dev.name,
-            'filesystem': dev.filesystem,
-            'total_size': dev.total_size,
-            'free_size': dev.free_size,
-        }
-        for dev in devices
-    ]
+    return detector.list_devices()
 
 
 def get_device_path_windows(device_letter: str) -> str:
@@ -96,27 +82,25 @@ Ejemplos:
     
     # Listar dispositivos
     if args.list_devices:
-        if sys.platform != 'win32':
-            print('[ERROR] La detección automática solo está disponible en Windows.')
-            print('        Especifique el dispositivo manualmente con --device')
-            sys.exit(1)
-        
         print('\n[*] Dispositivos USB conectados:\n')
-        devices = list_usb_devices_windows()
+        devices = list_usb_devices()
         
         if not devices:
             print('    No se encontraron dispositivos USB.')
             print('    Asegúrese de que el USB esté conectado.')
         else:
             for dev in devices:
-                total_gb = dev['total_size'] / (1024**3)
-                free_gb = dev['free_size'] / (1024**3)
-                used_gb = total_gb - free_gb
-                print(f"    {dev['letter']}: - {dev['name']}")
-                print(f"      Filesystem: {dev['filesystem']}")
-                print(f"      Tamaño: {total_gb:.1f} GB (Usado: {used_gb:.1f} GB, "
-                      f"Libre: {free_gb:.1f} GB)")
-                print(f"      Para usar: python usb_recovery.py --device {dev['path']} "
+                print(f"    {dev.id} - {dev.name}")
+                print(f"      Ruta: {dev.path}")
+                print(f"      Filesystem: {dev.filesystem or 'desconocido'}")
+                print(f"      Tamaño: {dev.size_gb:.1f} GB "
+                      f"(Usado: {dev.used_size/(1024**3):.1f} GB, "
+                      f"Libre: {dev.free_gb:.1f} GB)")
+                if dev.model:
+                    print(f"      Modelo: {dev.model}")
+                if dev.serial:
+                    print(f"      Serie: {dev.serial}")
+                print(f"      Para usar: python usb_recovery.py --device {dev.path} "
                       f"--output ./recovered")
                 print()
         

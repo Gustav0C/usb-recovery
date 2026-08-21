@@ -257,6 +257,104 @@ class NativeDeviceReader:
         self.close()
 
 
+class LinuxDeviceReader:
+    """
+    Lector de dispositivos nativo para Linux.
+
+    Usa open() con O_DIRECT para leer directamente del dispositivo
+    sin pasar por la cache del page cache del kernel.
+
+    Ventajas:
+    - Sin overhead de page cache
+    - Lectura directa del dispositivo
+    - Ideal para escaneo forense
+
+    Restricciones:
+    - Solo Linux
+    - Lecturas deben ser alineadas a 512 bytes
+    - Requiere permisos root
+    """
+
+    def __init__(self, device_path: str):
+        self.device_path = device_path
+        self.fd = None
+        self._open()
+
+    def _open(self):
+        """Abre el dispositivo con O_DIRECT."""
+        if not sys.platform.startswith('linux'):
+            raise RuntimeError("LinuxDeviceReader solo esta disponible en Linux")
+
+        try:
+            # O_DIRECT = 0x4000, O_RDONLY = 0
+            O_DIRECT = 0x4000
+            self.fd = os.open(self.device_path, os.O_RDONLY | O_DIRECT)
+        except PermissionError:
+            raise RuntimeError(
+                f"Permisos insuficientes para {self.device_path}. "
+                "Ejecuta como root: sudo python usb_recovery.py"
+            )
+        except OSError as e:
+            raise RuntimeError(f"No se pudo abrir dispositivo: {e}")
+
+    def read_aligned(self, size: int, offset: int = 0) -> bytes:
+        """
+        Lee datos del dispositivo con alineacion a sector (512 bytes).
+
+        Args:
+            size: Tamano a leer ( sera redondeado a multiplo de 512)
+            offset: Offset en el dispositivo (debe ser multiplo de 512)
+
+        Returns:
+            Bytes leidos
+        """
+        SECTOR_SIZE = 512
+
+        # Alinear offset hacia abajo
+        aligned_offset = (offset // SECTOR_SIZE) * SECTOR_SIZE
+        offset_diff = offset - aligned_offset
+
+        # Alinear tamano hacia arriba
+        total_read = size + offset_diff
+        aligned_size = ((total_read + SECTOR_SIZE - 1) // SECTOR_SIZE) * SECTOR_SIZE
+
+        # Buffer alineado a 512 bytes para O_DIRECT
+        buffer = ctypes.create_string_buffer(aligned_size + SECTOR_SIZE)
+
+        # Ajustar pointer del buffer para que sea alineado
+        buf_addr = ctypes.addressof(buffer)
+        aligned_addr = ((buf_addr + SECTOR_SIZE - 1) // SECTOR_SIZE) * SECTOR_SIZE
+        aligned_buf = (ctypes.c_char * aligned_size).from_address(aligned_addr)
+
+        # Seek y leer
+        os.lseek(self.fd, aligned_offset, os.SEEK_SET)
+        bytes_read = os.read(self.fd, aligned_size)
+
+        if len(bytes_read) < aligned_size:
+            # Lectura parcial - puede ocurrir en fin de dispositivo
+            result = bytes_read
+        else:
+            result = bytes(aligned_buf)
+
+        return result[offset_diff:offset_diff + size]
+
+    def get_size(self) -> int:
+        """Obtiene el tamano total del dispositivo."""
+        return os.lseek(self.fd, 0, os.SEEK_END)
+
+    def close(self):
+        """Cierra el file descriptor."""
+        if self.fd is not None:
+            os.close(self.fd)
+            self.fd = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+
 class StandardDeviceReader:
     """
     Lector estandar usando Python open().
@@ -293,12 +391,23 @@ def create_reader(device_path: str):
     """
     Crea el lector apropiado para la plataforma.
 
-    En Windows, intenta usar I/O nativo. Si falla, usa estandar.
+    - Windows: intenta I/O nativo (NO_BUFFERING), fallback estandar
+    - Linux: intenta I/O nativo (O_DIRECT), fallback estandar
+    - macOS/otros: siempre estandar
     """
     if sys.platform == 'win32':
         try:
             reader = NativeDeviceReader(device_path)
             print('[*] Usando I/O nativo Windows (NO_BUFFERING)')
+            return reader
+        except Exception as e:
+            print(f'[WARNING] I/O nativo no disponible: {e}')
+            print('[*] Usando I/O estandar')
+
+    elif sys.platform.startswith('linux'):
+        try:
+            reader = LinuxDeviceReader(device_path)
+            print('[*] Usando I/O nativo Linux (O_DIRECT)')
             return reader
         except Exception as e:
             print(f'[WARNING] I/O nativo no disponible: {e}')
