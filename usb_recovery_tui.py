@@ -16,7 +16,9 @@ from datetime import datetime
 from typing import List, Dict, Optional, Callable
 
 # Importar el motor de carving
-from usb_recovery import FileCarver, list_usb_devices_windows, FILE_SIGNATURES
+from usb_recovery import FileCarver, FILE_SIGNATURES
+from usb_recovery.platform.detector import get_detector, DeviceInfo
+from usb_recovery.utils.progress import ProgressBar
 
 
 # ============================================================================
@@ -175,12 +177,13 @@ class RecoveryTUI:
     
     def __init__(self):
         self.width = 60
-        self.devices: List[Dict] = []
-        self.selected_device: Optional[Dict] = None
+        self.devices: List[DeviceInfo] = []
+        self.selected_device: Optional[DeviceInfo] = None
         self.selected_types: List[str] = []
         self.output_dir: str = './recovered'
         self.scanning = False
         self.recovered_files: List[Dict] = []
+        self.detector = get_detector()
     
     def show_banner(self):
         """Muestra el banner de inicio."""
@@ -201,7 +204,7 @@ class RecoveryTUI:
     def refresh_devices(self):
         """Refresca la lista de dispositivos USB."""
         print(f"\n{Colors.CYAN}[*] Buscando dispositivos USB...{Colors.RESET}")
-        self.devices = list_usb_devices_windows()
+        self.devices = self.detector.list_devices()
         
         if not self.devices:
             print(f"\n{Colors.YELLOW}[!] No se encontraron dispositivos USB.{Colors.RESET}")
@@ -227,21 +230,18 @@ class RecoveryTUI:
         
         lines = []
         for i, dev in enumerate(self.devices, 1):
-            total_gb = dev['total_size'] / (1024**3)
-            free_gb = dev['free_size'] / (1024**3)
-            used_gb = total_gb - free_gb
-            used_percent = (used_gb / total_gb * 100) if total_gb > 0 else 0
-            
             # Barra de progreso visual
             bar_width = 20
-            filled = int(bar_width * used_percent / 100)
+            filled = int(bar_width * dev.used_percent / 100)
             bar = '█' * filled + '░' * (bar_width - filled)
             
-            lines.append(f"{Colors.GREEN}{dev['letter']}:{Colors.RESET} - {dev['name']}")
-            lines.append(f"  {Colors.DIM}Filesystem:{Colors.RESET} {dev['filesystem']}")
-            lines.append(f"  {Colors.DIM}Tamaño:{Colors.RESET} {total_gb:.1f} GB")
-            lines.append(f"  {Colors.DIM}Uso:{Colors.RESET} [{bar}] {used_percent:.0f}%")
-            lines.append(f"  {Colors.DIM}Libre:{Colors.RESET} {free_gb:.1f} GB")
+            lines.append(f"{Colors.GREEN}{dev.id}{Colors.RESET} - {dev.name}")
+            lines.append(f"  {Colors.DIM}Filesystem:{Colors.RESET} {dev.filesystem or 'desconocido'}")
+            lines.append(f"  {Colors.DIM}Tamaño:{Colors.RESET} {dev.size_gb:.1f} GB")
+            lines.append(f"  {Colors.DIM}Uso:{Colors.RESET} [{bar}] {dev.used_percent:.0f}%")
+            lines.append(f"  {Colors.DIM}Libre:{Colors.RESET} {dev.free_gb:.1f} GB")
+            if dev.model:
+                lines.append(f"  {Colors.DIM}Modelo:{Colors.RESET} {dev.model}")
             if i < len(self.devices):
                 lines.append("  ─────────────────────────────────────")
         
@@ -254,7 +254,7 @@ class RecoveryTUI:
             return False
         
         print()
-        options = [f"{d['letter']}: - {d['name']}" for d in self.devices]
+        options = [f"{dev.id} - {dev.name}" for dev in self.devices]
         options.append("Cancelar")
         
         choice = input_option("Seleccione el dispositivo USB:", options, self.width)
@@ -263,11 +263,11 @@ class RecoveryTUI:
             return False
         
         # Encontrar el dispositivo seleccionado
-        letter = choice.split(':')[0].strip()
+        dev_id = choice.split(' - ')[0].strip()
         for dev in self.devices:
-            if dev['letter'] == letter:
+            if dev.id == dev_id:
                 self.selected_device = dev
-                print(f"\n{Colors.GREEN}[✓] Dispositivo seleccionado: {dev['letter']}: - {dev['name']}{Colors.RESET}")
+                print(f"\n{Colors.GREEN}[✓] Dispositivo seleccionado: {dev.id} - {dev.name}{Colors.RESET}")
                 return True
         
         return False
@@ -397,13 +397,12 @@ class RecoveryTUI:
         print_header("RESUMEN DEL ESCANEO", self.width)
         
         lines = [
-            f"{Colors.GREEN}Dispositivo:{Colors.RESET} {self.selected_device['letter']}: - {self.selected_device['name']}",
+            f"{Colors.GREEN}Dispositivo:{Colors.RESET} {self.selected_device.id} - {self.selected_device.name}",
+            f"{Colors.GREEN}Ruta:{Colors.RESET} {self.selected_device.path}",
             f"{Colors.GREEN}Salida:{Colors.RESET} {self.output_dir}",
             f"{Colors.GREEN}Tipos:{Colors.RESET} {', '.join(self.selected_types) if self.selected_types else 'Todos'}",
+            f"{Colors.GREEN}Tamaño:{Colors.RESET} {self.selected_device.size_gb:.1f} GB",
         ]
-        
-        total_gb = self.selected_device['total_size'] / (1024**3)
-        lines.append(f"{Colors.GREEN}Tamaño:{Colors.RESET} {total_gb:.1f} GB")
         
         print_box(lines, self.width, "Configuración", Colors.CYAN)
     
@@ -415,8 +414,10 @@ class RecoveryTUI:
         output_path = Path(self.output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
         
+        # Obtener ruta raw del dispositivo
+        device_path = self.detector.get_raw_path(self.selected_device.id)
+        
         # Crear carver
-        device_path = f'\\\\.\\{self.selected_device["letter"]}:'
         carver = FileCarver(
             device_path=device_path,
             output_dir=self.output_dir,
@@ -425,8 +426,8 @@ class RecoveryTUI:
         
         self.scanning = True
         
-        # Barra de progreso simple
         print(f"\n{Colors.CYAN}[*] Iniciando escaneo...{Colors.RESET}")
+        print(f"{Colors.DIM}    Dispositivo: {device_path}{Colors.RESET}")
         print(f"{Colors.DIM}    Presione Ctrl+C para cancelar{Colors.RESET}\n")
         
         try:
@@ -468,14 +469,19 @@ class RecoveryTUI:
         # Estadísticas por tipo
         by_type = {}
         total_size = 0
+        fragmented = 0
         for f in self.recovered_files:
             t = f['type']
             by_type[t] = by_type.get(t, 0) + 1
             total_size += f['size']
+            if f.get('fragmented'):
+                fragmented += 1
         
         lines = []
         lines.append(f"{Colors.GREEN}Total de archivos:{Colors.RESET} {len(self.recovered_files)}")
         lines.append(f"{Colors.GREEN}Espacio recuperado:{Colors.RESET} {total_size / (1024*1024):.1f} MB")
+        if fragmented > 0:
+            lines.append(f"{Colors.GREEN}Fragmentados:{Colors.RESET} {fragmented} reconstruidos")
         lines.append("")
         lines.append(f"{Colors.CYAN}Por tipo:{Colors.RESET}")
         
@@ -495,7 +501,7 @@ class RecoveryTUI:
         # Estado actual
         if self.selected_device:
             status = [
-                f"Dispositivo: {Colors.GREEN}{self.selected_device['letter']}:{Colors.RESET} {self.selected_device['name']}",
+                f"Dispositivo: {Colors.GREEN}{self.selected_device.id}{Colors.RESET} - {self.selected_device.name}",
                 f"Tipos: {Colors.GREEN}{', '.join(self.selected_types) if self.selected_types else 'Todos'}{Colors.RESET}",
                 f"Salida: {Colors.GREEN}{self.output_dir}{Colors.RESET}",
             ]
