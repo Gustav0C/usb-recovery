@@ -1,122 +1,233 @@
-# USB File Recovery Tool
+# USB Recovery Pro
 
-Herramienta de Python para recuperar archivos eliminados de dispositivos USB mediante técnicas de **file carving** (talla de archivos).
+[![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://python.org)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
 
-## ⚠️ Advertencia Importante
+Professional USB file recovery tool with forensic engine, performance optimizations, and advanced analysis capabilities.
 
-- **Ejecute el script como administrador** para tener acceso raw al dispositivo
-- **No escriba en el USB** después de borrar archivos (para evitar sobrescritura)
-- Los archivos recuperados pueden estar parcialmente corruptos
-- No es 100% garantizado - depende de si los bloques fueron reutilizados
+```
+  ╔═╗╦═╗╦ ╦╔═╗╔╦╗╔═╗  ╔═╗╦ ╦╔═╗╔╗╔╔╦╗
+  ╠═╝╠╦╝╚╦╝╠═╝ ║ ╠═╣  ╠═╣║ ║║ ║║║║ ║ 
+  ╩  ╩╚═ ╩ ╩   ╩ ╩ ╩  ╩ ╩╚═╝╚═╝╝╚╝ ╩ 
+```
 
-## Requisitos
+## Features
 
-- Python 3.7+
-- Windows (para detección automática de USB)
-- Permisos de administrador
+- **File Carving Engine**: Scan raw device sectors to recover deleted files
+- **Forensic Analysis**: Chain of custody, integrity verification, fragmentation detection
+- **20+ File Types**: JPEG, PNG, PDF, DOCX, ZIP, MP3, MP4, and more
+- **Performance Optimized**: Multi-pattern search, native I/O, parallel scanning
+- **Cross-Platform**: Windows, Linux, and macOS support
+- **Professional Export**: JSON, CSV, HTML reports, ZIP archives
 
-No requiere dependencias externas - solo usa la biblioteca estándar de Python.
+## Quick Start
 
-## Uso
-
-### 1. Listar dispositivos USB conectados
+### Installation
 
 ```bash
-python usb_recovery.py --list-devices
+# From PyPI (when published)
+pip install usb-recovery-pro
+
+# From source
+git clone https://github.com/Gustav0C/usb-recovery.git
+cd usb-recovery
+pip install -e .
 ```
 
-### 2. Recuperar todos los archivos
+### Basic Usage
 
 ```bash
-python usb_recovery.py --device \\.\E: --output ./recuperados
+# List connected USB devices
+usb-recovery --list-devices
+
+# Recover all files from a device
+usb-recovery --device \\.\E: --output ./recovered
+
+# Recover only specific types
+usb-recovery --device \\.\E: --output ./recovered --types jpeg,pdf,png
+
+# Scan first 1GB only
+usb-recovery --device \\.\E: --output ./recovered --size 1GB
 ```
 
-### 3. Recuperar solo tipos específicos
+### Interactive TUI
 
 ```bash
-python usb_recovery.py --device \\.\E: --output ./recuperados --types jpeg,pdf,png
+# Launch the terminal user interface
+usb-recovery-tui
 ```
 
-### 4. Escanear una porción del dispositivo
+## Supported File Types
+
+| Category | Types |
+|----------|-------|
+| **Images** | JPEG, PNG, GIF, BMP, TIFF, WebP |
+| **Documents** | PDF, DOCX, XLSX, PPTX |
+| **Archives** | ZIP, RAR, 7z, GZIP |
+| **Audio** | MP3, WAV |
+| **Video** | MP4, AVI, MKV |
+| **Executables** | EXE, ELF |
+
+## Advanced Features
+
+### Forensic Mode
+
+```python
+from usb_recovery import ForensicMode
+
+# Initialize forensic mode with case tracking
+forensic = ForensicMode(case_id="CASE-2024-001", examiner="John Doe")
+
+# Log all actions for chain of custody
+forensic.log_access("/dev/sdb", "scan_start", "Initial scan")
+
+# Generate forensic report
+report = forensic.generate_report(
+    device_path="/dev/sdb",
+    device_info={"size": 8*1024**3},
+    recovered_files=results
+)
+forensic.export_report(report, "./output")
+```
+
+### Post-Scan Filtering
+
+```python
+from usb_recovery import ScanFilter
+
+# Filter results by multiple criteria
+filtered = (ScanFilter(results)
+    .filter_by_type(['jpeg', 'png'])
+    .filter_by_size(min_size=1024, max_size=10*1024*1024)
+    .exclude_duplicates()
+    .get_results())
+```
+
+### Export Results
+
+```python
+from usb_recovery import ExportManager
+
+exporter = ExportManager(results, "./output")
+
+# Export to multiple formats
+exporter.export_json("results.json")
+exporter.export_csv("results.csv")
+exporter.export_html("report.html")  # Visual HTML report
+exporter.export_to_zip("./recovered_files")  # Compress recovered files
+```
+
+### Forensic Analysis
+
+```python
+from usb_recovery import ForensicAnalyzer
+
+analyzer = ForensicAnalyzer(results, device_size=8*1024**3)
+
+# Get detailed analysis
+summary = analyzer.generate_summary()
+print(f"Fragmentation rate: {summary['fragmentation']['fragmentation_rate']:.1%}")
+print(f"Integrity score: {summary['integrity_estimate']['grade']}")
+```
+
+## Architecture
+
+```
+usb_recovery/
+├── core/
+│   ├── carver.py          # Main carving engine
+│   ├── forensic.py        # Forensic analysis engine
+│   ├── validator.py       # File integrity validation
+│   ├── deduplicator.py    # Hash-based deduplication
+│   ├── performance.py     # Multi-pattern search, native I/O
+│   ├── advanced.py        # Forensic mode, filtering, export
+│   └── signatures.py      # File type signatures (20+ formats)
+├── platform/
+│   └── detector.py        # Cross-platform device detection
+├── utils/
+│   ├── config.py          # Scan configuration
+│   ├── logging.py         # JSON logging
+│   └── progress.py        # Progress bar with ETA
+└── main.py                # CLI entry point
+```
+
+## Performance
+
+- **Multi-pattern search**: First-byte index skips 99% of positions
+- **Native I/O**: Windows NO_BUFFERING, Linux O_DIRECT
+- **Parallel scanning**: ProcessPoolExecutor for multi-core
+- **Offset cache**: Persistent cache for rescan optimization
+
+## Command Line Options
+
+```
+--device, -d           Device path (e.g., \\.\E: or /dev/sdb)
+--output, -o           Output directory (default: ./recovered)
+--list-devices, -l     List connected USB devices
+--types, -t            File types to search (comma-separated)
+--offset               Scan start offset in bytes
+--size, -s             Maximum scan size (e.g., 1GB, 500MB)
+--chunk-size           Read block size (default: 1MB)
+```
+
+## Platform Support
+
+| Platform | Device Detection | Native I/O | Status |
+|----------|-----------------|------------|--------|
+| Windows | Win32 API | CreateFile NO_BUFFERING | Full |
+| Linux | lsblk + /sys/block | O_DIRECT | Full |
+| macOS | diskutil | Standard | Full |
+
+## How It Works
+
+1. **Raw Access**: Opens device at sector level (requires admin/root)
+2. **Signature Scan**: Searches for file type headers (JPEG: FFD8FF, PDF: %PDF-, etc.)
+3. **Boundary Detection**: Finds file endings (JPEG: FFD9, PDF: %%EOF)
+4. **Validation**: Verifies file integrity using format-specific checks
+5. **Recovery**: Saves validated files with deduplication
+
+## Limitations
+
+- Cannot recover original filenames or folder structure
+- Fragmented files may be partially recovered
+- Files < 100 bytes are skipped (false positive prevention)
+- Encrypted volumes (BitLocker, VeraCrypt) not supported
+- Requires admin/root for raw device access
+
+## Tips for Best Results
+
+1. **Act quickly**: Deleted data gets overwritten over time
+2. **Don't write to the USB**: Avoid using the device after deletion
+3. **Run as administrator**: Required for raw device access
+4. **Use type filters**: If only looking for photos, use `--types jpeg,png`
+5. **Check manually**: Some recovered files may be corrupted
+
+## Development
 
 ```bash
-python usb_recovery.py --device \\.\E: --output ./recuperados --offset 0 --size 1GB
+# Clone repository
+git clone https://github.com/Gustav0C/usb-recovery.git
+cd usb-recovery
+
+# Install in development mode
+pip install -e .
+
+# Run tests
+python -m unittest discover tests/
+
+# Run specific test suite
+python -m unittest tests.test_forensic
 ```
 
-## Tipos de Archivo Soportados
+## License
 
-| Tipo | Extensión | Descripción |
-|------|-----------|-------------|
-| jpeg | .jpg | Imágenes JPEG |
-| png | .png | Imágenes PNG |
-| gif | .gif | Imágenes GIF |
-| bmp | .bmp | Imágenes BMP |
-| tiff | .tiff | Imágenes TIFF |
-| webp | .webp | Imágenes WebP |
-| pdf | .pdf | Documentos PDF |
-| docx | .docx | Documentos Word |
-| xlsx | .xlsx | Hojas de cálculo Excel |
-| pptx | .pptx | Presentaciones PowerPoint |
-| zip | .zip | Archivos comprimidos ZIP |
-| rar | .rar | Archivos RAR |
-| 7z | .7z | Archivos 7-Zip |
-| gzip | .gz | Archivos GZIP |
-| mp3 | .mp3 | Audio MP3 |
-| mp4 | .video | Video MP4 |
-| avi | .avi | Video AVI |
-| mkv | .mkv | Video MKV |
-| wav | .wav | Audio WAV |
-| exe | .exe | Ejecutables Windows |
-| elf | .elf | Ejecutables Linux |
+MIT License - See [LICENSE](LICENSE) for details.
 
-## Opciones de Línea de Comandos
+## Disclaimer
 
-```
---device, -d       Ruta del dispositivo (ej: \\.\E:)
---output, -o       Directorio de salida (default: ./recovered)
---list-devices, -l Listar dispositivos USB conectados
---types, -t        Tipos de archivo a buscar (separados por coma)
---offset           Offset inicial de escaneo en bytes
---size, -s         Tamaño máximo a escaneo (ej: 1GB, 500MB)
---chunk-size       Tamaño de bloque de lectura (default: 1MB)
-```
+Use this tool responsibly and only on devices you own or have authorization to recover data from. The authors are not responsible for any misuse.
 
-## Ejemplo Práctico
+---
 
-```bash
-# 1. Conectar el USB y verlo
-python usb_recovery.py --list-devices
-
-# 2. Recuperar todo del USB (suponiendo que es E:)
-python usb_recovery.py --device \\.\E: --output ./mi_usb_recuperado
-
-# 3. Verificar archivos recuperados
-dir mi_usb_recuperado
-```
-
-## Cómo Funciona
-
-1. **Apertura raw**: Accede al dispositivo directamente a nivel de sector
-2. **Escaneo por firmas**: Busca secuencias de bytes que identifican cada tipo de archivo
-3. **Extracción**: Extrae los datos desde la cabecera hasta el footer del archivo
-4. **Guardado**: Escribe los archivos recuperados en el directorio de salida
-
-## Limitaciones
-
-- **No recupera nombres de archivo originales** (solo genera nombres genéricos)
-- **No recupera estructura de carpetas**
-- **Archivos fragmentados** pueden no recuperarse correctamente
-- **Archivos pequeños** (<100 bytes) se ignoran para evitar falsos positivos
-- **No funciona con cifrado** (BitLocker, Veracrypt, etc.)
-
-## Consejos
-
-1. **Actuar rápido**: Cuanto antes, mejor - los bloques se reutilizan
-2. **No usar el USB**: Evitar escribir datos nuevos
-3. **Ejecutar como administrador**: Necesario para acceso raw
-4. **Probar con tipos específicos**: Si solo buscás fotos, usar `--types jpeg,png`
-5. **Revisar manualmente**: Algunos archivos pueden estar corruptos
-
-## Licencia
-
-Uso bajo su responsabilidad. Esta herramienta es para recuperación legítima de datos propios.
+**Built with Python** | **No external dependencies** | **Cross-platform**
