@@ -6,11 +6,7 @@
 
 Professional USB file recovery tool with forensic engine, performance optimizations, and advanced analysis capabilities.
 
-```
-  ╔═╗╦═╗╦ ╦╔═╗╔╦╗╔═╗  ╔═╗╦ ╦╔═╗╔╗╔╔╦╗
-  ╠═╝╠╦╝╚╦╝╠═╝ ║ ╠═╣  ╠═╣║ ║║ ║║║║ ║ 
-  ╩  ╩╚═ ╩ ╩   ╩ ╩ ╩  ╩ ╩╚═╝╚═╝╝╚╝ ╩ 
-```
+<img width="753" height="395" alt="Portafolioimage" src="https://github.com/user-attachments/assets/738779af-fa60-489d-909f-eacdf31859a0" />
 
 ## Features
 
